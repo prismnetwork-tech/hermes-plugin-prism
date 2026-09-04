@@ -25,6 +25,14 @@ terminal:
     # open, so Hermes credential files stay off the rented machine.
     sync_credentials: false
 
+# Hermes abandons a tool call at this many seconds. The first command of a
+# session rents the GPU and waits for the escrow's ten-minute provisioning
+# window, so the default of 420 would leave a funded lease with nobody waiting
+# for it; the backend refuses to rent under 900.
+timeouts:
+  tools:
+    sequential_call: 900
+
 skills:
   # The three Prism skills, read-only, straight out of the plugin directory.
   # Relative paths resolve against this profile's Hermes home.

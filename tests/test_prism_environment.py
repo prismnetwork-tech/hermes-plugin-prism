@@ -29,6 +29,7 @@ from prism_environment import (
     EXPIRY_MARGIN_S,
     MIN_COMMAND_S,
     MIN_LEASE_SECONDS,
+    PROVISION_BUDGET_S,
     PROBE_COMMAND_S,
     PROBE_TIMEOUT_S,
     STEADY_RETRIES,
@@ -205,6 +206,11 @@ class PrismTestCase(unittest.TestCase):
         self._enter(mock.patch.object(prism_environment, "terminal_prism_config",
                                       lambda: dict(self.config)))
         self._enter(mock.patch.object(prism_environment, "build_agent", lambda: self.agent))
+        # Hermes' real default ceiling (420 s) cannot hold a provision and the
+        # backend refuses under it; the guard has its own test.
+        self._unpatched_ceiling = prism_environment.sequential_tool_ceiling
+        self._enter(mock.patch.object(prism_environment, "sequential_tool_ceiling",
+                                      lambda: None))
         # A refund watch outlives the environment that started it by design, so
         # nothing here may leave one polling on the real minute-long interval.
         self._enter(mock.patch.object(prism_environment, "REFUND_POLL_S", 0))
@@ -272,6 +278,54 @@ class TestProvisioning(PrismTestCase):
         self.assertEqual(result["returncode"], 0)
         self.assertIn("ok", result["output"])
         self.assertEqual(env.lease_info()["gpu"], "H100")
+
+    def test_a_machine_that_never_answers_is_released_and_reported_as_one_line(self):
+        self.agent.results["echo $HOME"] = {
+            "code": 255, "stdout": "", "stderr": "ssh: connect to host 1.2.3.4 port 40022: Connection refused",
+        }
+        env = self.make_env()
+
+        with self.assertRaises(PrismLeaseError) as raised:
+            env.execute("nvidia-smi")
+
+        self.assertEqual(len(self.agent.lease_calls), 1)
+        self.assertEqual(len(self.agent.ended), 1)
+        self.assertIn("nothing answered", str(raised.exception))
+        self.assertIn("released", str(raised.exception))
+        self.assertIsNone(env.lease_info())
+        # The next command rents again rather than retrying the dead machine.
+        self.agent.results.pop("echo $HOME")
+        env.execute("nvidia-smi")
+        self.assertEqual(len(self.agent.lease_calls), 2)
+
+    def test_a_slow_first_contact_never_rents_a_second_gpu_from_inside_the_first(self):
+        # Seen live: the home probe took longer than the paid window, the
+        # bootstrap's own command re-entered _ensure_lease, and a second escrow
+        # was funded while the first was still being set up.
+        clock = self.fake_clock()
+        self.agent.duration = 600
+
+        def slow_probe(lease, command, **kw):
+            if command == "echo $HOME":
+                clock.advance(700)
+                return {"code": 0, "stdout": "/root", "stderr": ""}
+            return {"code": 0, "stdout": "ok", "stderr": ""}
+
+        self.agent.run = slow_probe
+        env = self.make_env()
+        with self.assertRaises(PrismLeaseError) as raised:
+            env.execute("nvidia-smi")
+
+        self.assertIn("ran out", str(raised.exception))
+        self.assertEqual(len(self.agent.lease_calls), 1)
+        self.assertEqual(len(self.agent.ended), 1)
+        self.assertIsNone(env.lease_info())
+
+    def test_first_contact_is_given_every_warm_up_attempt(self):
+        env = self.make_env()
+        env.execute("true")
+        probe = next(c for c in self.agent.run_calls if c["command"] == "echo $HOME")
+        self.assertEqual(probe["retries"], prism_environment.WARMUP_RETRIES)
 
     def test_second_command_reuses_the_lease(self):
         env = self.make_env()
@@ -345,6 +399,33 @@ class TestLeaseWindow(PrismTestCase):
             self.make_env()
         self.assertIn("lease_seconds", str(raised.exception))
         self.assertEqual(self.agent.lease_calls, [])
+
+    def test_a_tool_ceiling_that_cannot_hold_a_provision_is_refused_before_it_is_rented(self):
+        self.config = {"max_usdg": 1, "daily_budget_usdg": 5}
+        for ceiling, rents in ((420.0, False), (PROVISION_BUDGET_S - 1, False),
+                               (PROVISION_BUDGET_S, True), (None, True)):
+            with self.subTest(ceiling=ceiling):
+                with mock.patch.object(prism_environment, "sequential_tool_ceiling",
+                                       lambda c=ceiling: c):
+                    if rents:
+                        self.make_env()
+                        continue
+                    with self.assertRaises(PrismLeaseError) as raised:
+                        self.make_env()
+                    self.assertIn("timeouts.tools.sequential_call", str(raised.exception))
+                    self.assertIn(str(PROVISION_BUDGET_S), str(raised.exception))
+        self.assertEqual(self.agent.lease_calls, [])
+
+    def test_the_tool_ceiling_is_read_through_hermes_own_resolver(self):
+        from agent import tool_executor
+
+        read = self._unpatched_ceiling
+        for resolved, expected in ((420.0, 420.0), (0, None), (-1, None), (None, None),
+                                   (900, 900.0)):
+            with self.subTest(resolved=resolved):
+                with mock.patch.object(tool_executor, "_resolve_sequential_tool_timeout",
+                                       lambda r=resolved: r):
+                    self.assertEqual(read(), expected)
 
     def test_a_quote_with_no_usable_window_is_handed_back_rather_than_run_against(self):
         self.fake_clock()

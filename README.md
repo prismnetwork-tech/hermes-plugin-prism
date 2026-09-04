@@ -20,7 +20,14 @@ pip install prismnetwork
 git clone https://github.com/prismnetwork-tech/hermes-plugin-prism ~/.hermes/plugins/prism
 hermes plugins enable prism
 hermes config set terminal.backend prism
+hermes config set timeouts.tools.sequential_call 900
 ```
+
+The last line matters. Hermes abandons a tool call after 420 seconds by
+default, and the first command of a session rents the GPU and waits for it to
+come up, which the escrow allows ten minutes for. Under the default a lease
+could be funded with nothing left waiting for it, so the backend refuses to
+rent until the ceiling is 900 or higher (`0` removes it).
 
 Then give it a wallet. Create a key, fund it with USDG for leases and a little
 ETH for gas on Robinhood Chain (id 4663), and save the key in `~/.hermes/.env`:

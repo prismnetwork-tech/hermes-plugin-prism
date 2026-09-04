@@ -65,6 +65,7 @@ compute config set terminal.prism.max_usdg 0.5
 compute config set terminal.prism.daily_budget_usdg 2
 compute config set terminal.prism.min_vram_mib 45056
 compute config set terminal.prism.lease_seconds 900
+compute config set timeouts.tools.sequential_call 900
 ```
 
 ### Why the lease is 15 minutes

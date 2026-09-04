@@ -99,6 +99,14 @@ ATTEMPT_S = SSH_CONNECT_TIMEOUT_S + CONNECT_DELAY_S
 EXEC_OVERHEAD_S = 20
 #: No command is worth running with less time than this.
 MIN_COMMAND_S = 5
+#: What the first command of a session can take before it runs anything: the
+#: escrow gives a machine ten minutes to open access, the SDK waits that long
+#: for it, and the home probe waits out sshd on top. Hermes bounds every
+#: sequential tool call at ``timeouts.tools.sequential_call`` (420 s unless
+#: set) and abandons the call past it, which leaves a funded lease with nobody
+#: waiting for it. The backend refuses to rent under a ceiling that cannot
+#: hold a provision, and names the setting to raise.
+PROVISION_BUDGET_S = 900
 #: SSH retries allowed while the freshly provisioned box is still coming up.
 #: Bounded by the command's own deadline so a warm-up loop can never outlive
 #: the wait that is watching it.
@@ -117,9 +125,12 @@ UNREACHABLE_CODES = frozenset({255, -1})
 #: First contact with a machine that booted seconds ago, and what it prints
 #: decides where every synced file lands. ``echo $HOME`` answers instantly, so
 #: the wide budget buys connect attempts rather than shell time: what this
-#: waits on is sshd coming up.
-PROBE_TIMEOUT_S = 180
+#: waits on is sshd coming up. A cloud host reports its forwarded port before
+#: anything listens on it, and a refused connection costs a second rather than
+#: the connect timeout the budget prices, so this is sized for every warm-up
+#: attempt the backend allows: WARMUP_RETRIES of them, then the answer.
 PROBE_COMMAND_S = 15
+PROBE_TIMEOUT_S = WARMUP_RETRIES * (SSH_CONNECT_TIMEOUT_S + CONNECT_DELAY_S) + PROBE_COMMAND_S + 20
 #: A synced file arrives as base64 on stdin, up to MAX_UPLOAD_BYTES of it, and
 #: the remote side decodes it before answering.
 UPLOAD_TIMEOUT_S = 120
@@ -340,6 +351,7 @@ def read_settings() -> Settings:
             f"terminal.prism.trust_class must be one of {', '.join(TRUST_CLASSES)}, "
             f"not {trust_class!r}"
         )
+    _check_tool_ceiling()
     lease_seconds = _int(config, "lease_seconds", DEFAULT_LEASE_SECONDS)
     if lease_seconds < MIN_LEASE_SECONDS:
         raise PrismLeaseError(
@@ -359,6 +371,39 @@ def read_settings() -> Settings:
         ledger_path=budget.ledger_path,
         max_per_call_micros=budget.max_per_call_micros,
         daily_micros=budget.daily_micros,
+    )
+
+
+def sequential_tool_ceiling() -> float | None:
+    """Hermes's deadline for one sequential tool call, or None when unbounded.
+
+    Read through core's own resolver so the answer is the one the executor
+    will enforce, config first and the legacy env var second. A core without
+    the resolver predates the deadline and bounds nothing.
+    """
+    try:
+        from agent.tool_executor import _resolve_sequential_tool_timeout
+    except ImportError:
+        return None
+    try:
+        ceiling = _resolve_sequential_tool_timeout()
+    except Exception:
+        return None
+    if ceiling is None or ceiling <= 0:
+        return None
+    return float(ceiling)
+
+
+def _check_tool_ceiling() -> None:
+    ceiling = sequential_tool_ceiling()
+    if ceiling is None or ceiling >= PROVISION_BUDGET_S:
+        return
+    raise PrismLeaseError(
+        f"Hermes abandons a tool call after {int(ceiling)}s "
+        "(timeouts.tools.sequential_call) and the first Prism command may spend "
+        f"{PROVISION_BUDGET_S}s renting and reaching its GPU, so a lease could be "
+        "funded with nothing left waiting for it. Prism will not rent under that "
+        f"ceiling. Run: hermes config set timeouts.tools.sequential_call {PROVISION_BUDGET_S}"
     )
 
 
@@ -910,6 +955,11 @@ class PrismEnvironment(BaseEnvironment):
                 "while the system prompt is being built. Nothing was charged."
             )
         with self._lock:
+            # Setup runs its commands from inside the provisioning that holds
+            # this lock, on the lease being provisioned. Re-deciding here would
+            # let a slow first contact rent a second GPU from inside the first.
+            if getattr(self._setup, "active", False) and self._lease is not None:
+                return self._lease
             if self._lease is not None and time.monotonic() < self._expires_at:
                 return self._lease
             if self._lease is not None:
@@ -935,18 +985,29 @@ class PrismEnvironment(BaseEnvironment):
                 raise
             self._last_command_at = time.monotonic()
             self._reachable = False
-            self._remote_home = self._probe_home(lease)
-            if self._requested_cwd in {"~", "/root"}:
-                self.cwd = self._remote_home
-            # A fresh machine holds none of the files the last one did, so the
-            # sync state starts empty with it.
-            self._sync_manager = FileSyncManager(
-                get_files_fn=self._files_to_sync,
-                upload_fn=self._upload,
-                delete_fn=self._delete,
-            )
-            self._sync_manager.sync(force=True)
-            self.init_session()
+            self._setup.active = True
+            try:
+                try:
+                    self._remote_home = self._probe_home(lease)
+                except PrismLeaseError:
+                    # Paid for and unreachable. Releasing stops the meter at
+                    # the seconds it was open; the next command rents afresh
+                    # and the network remembers the host that never answered.
+                    self._release()
+                    raise
+                if self._requested_cwd in {"~", "/root"}:
+                    self.cwd = self._remote_home
+                # A fresh machine holds none of the files the last one did, so
+                # the sync state starts empty with it.
+                self._sync_manager = FileSyncManager(
+                    get_files_fn=self._files_to_sync,
+                    upload_fn=self._upload,
+                    delete_fn=self._delete,
+                )
+                self._sync_manager.sync(force=True)
+                self.init_session()
+            finally:
+                self._setup.active = False
             self._start_idle_monitor()
             logger.info(
                 "Prism: lease %s live on %s for task %s (%ds paid, tx %s)",
@@ -1095,12 +1156,43 @@ class PrismEnvironment(BaseEnvironment):
         return cap
 
     def _probe_home(self, lease) -> str:
+        """First contact. A machine that never answers here is not a machine.
+
+        The escrow has granted access, so the wallet is paying from this
+        moment; a host whose sshd never comes up is released and reported as a
+        failed provision, in one line, rather than handed to the model as a
+        shell that refuses every command. The wait is bounded by the window
+        too: a machine that answers with no time left to use is the same
+        machine, and waiting for it would have the model's first command rent
+        the next one.
+        """
+        window = max(MIN_COMMAND_S, int(self._expires_at - time.monotonic()) - MIN_COMMAND_S)
+        deadline = min(PROBE_TIMEOUT_S, window)
         try:
-            res = self._run_bounded(lease, "echo $HOME", deadline=PROBE_TIMEOUT_S,
+            res = self._run_bounded(lease, "echo $HOME", deadline=deadline,
                                     timeout=PROBE_COMMAND_S)
-        except Exception:
+        except Exception as e:
             logger.debug("Prism: home probe failed", exc_info=True)
-            return "/root"
+            raise PrismLeaseError(
+                f"Prism: lease {lease.lease_id} opened access but its machine could not "
+                f"be reached in {deadline}s ({e}). It has been released; the "
+                "seconds it was open settle on-chain and the next command rents a "
+                "fresh GPU."
+            ) from e
+        if time.monotonic() >= self._expires_at:
+            raise PrismLeaseError(
+                f"Prism: lease {lease.lease_id} answered only as its paid window ran out. "
+                "It has been released; the seconds it was open settle on-chain and the "
+                "next command rents a fresh GPU."
+            )
+        if res.get("code") in UNREACHABLE_CODES:
+            raise PrismLeaseError(
+                f"Prism: lease {lease.lease_id} opened access but nothing answered on "
+                f"{lease.access.get('ssh_host')}:{lease.access.get('ssh_port')} within "
+                f"{deadline}s: {(res.get('stderr') or '').strip()[:160]}. It has "
+                "been released; the seconds it was open settle on-chain and the next "
+                "command rents a fresh GPU."
+            )
         home = (res.get("stdout") or "").strip().splitlines()
         return home[-1] if home and home[-1].startswith("/") else "/root"
 

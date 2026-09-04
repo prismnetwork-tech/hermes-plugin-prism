@@ -20,12 +20,14 @@ from __future__ import annotations
 
 import base64
 import hashlib
+import io
 import json
 import logging
 import os
 import posixpath
 import re
 import shlex
+import tarfile
 import threading
 import time
 import weakref
@@ -67,6 +69,12 @@ LEDGER_TOOL = "hermes terminal"
 #: transfer is a command over the SSH channel, and a multi-megabyte base64
 #: argument stalls the session for every file queued behind it.
 MAX_UPLOAD_BYTES = 4 * 1024 * 1024
+#: One tar stream carries the whole sync. The skills tree alone is close to a
+#: thousand files, and a round trip per file on a machine that closes idle
+#: connections spent an entire paid window uploading nothing the session asked
+#: for. Past this the sync is refused with a line naming what to trim, rather
+#: than pushed a file at a time.
+MAX_BULK_UPLOAD_BYTES = 32 * 1024 * 1024
 
 #: Stop using a lease a minute before its paid window closes; a command that
 #: starts inside that minute is cut off mid-run when the escrow settles.
@@ -135,6 +143,10 @@ PROBE_TIMEOUT_S = WARMUP_RETRIES * (SSH_CONNECT_TIMEOUT_S + CONNECT_DELAY_S) + P
 #: the remote side decodes it before answering.
 UPLOAD_TIMEOUT_S = 120
 UPLOAD_COMMAND_S = 60
+#: The bulk stream is one exec, so it gets one command's worth of time to
+#: land and unpack, plus the warm-up any first contact is allowed.
+BULK_UPLOAD_TIMEOUT_S = 240
+BULK_UPLOAD_COMMAND_S = 120
 DELETE_TIMEOUT_S = 60
 DELETE_COMMAND_S = 20
 #: Slack on the backstop watching a setup exec, so a healthy call returns
@@ -1002,6 +1014,7 @@ class PrismEnvironment(BaseEnvironment):
                 self._sync_manager = FileSyncManager(
                     get_files_fn=self._files_to_sync,
                     upload_fn=self._upload,
+                    bulk_upload_fn=self._bulk_upload,
                     delete_fn=self._delete,
                 )
                 self._sync_manager.sync(force=True)
@@ -1272,6 +1285,58 @@ class PrismEnvironment(BaseEnvironment):
             )
         if (capsule := self._capsule) is not None:
             capsule.record_artifact(remote_path, data)
+
+    def _bulk_upload(self, files: list[tuple[str, str]]) -> None:
+        """Every file of a sync cycle in one exec, as a tar stream on stdin.
+
+        Files past the inline limit are left out with a warning, as the single
+        upload leaves them out, so a cycle is never rolled back for a file that
+        will never fit.
+        """
+        buffer = io.BytesIO()
+        recorded: list[tuple[str, bytes]] = []
+        with tarfile.open(fileobj=buffer, mode="w:gz") as archive:
+            for host_path, remote_path in files:
+                data = Path(host_path).read_bytes()
+                if len(data) > MAX_UPLOAD_BYTES:
+                    logger.warning(
+                        "Prism: %s is %d bytes, past the %d byte inline transfer limit — not synced",
+                        host_path, len(data), MAX_UPLOAD_BYTES,
+                    )
+                    continue
+                info = tarfile.TarInfo(name=remote_path.lstrip("/"))
+                info.size = len(data)
+                info.mode = 0o600
+                info.mtime = int(time.time())
+                archive.addfile(info, io.BytesIO(data))
+                recorded.append((remote_path, data))
+        payload = buffer.getvalue()
+        if len(payload) > MAX_BULK_UPLOAD_BYTES:
+            raise PrismLeaseError(
+                f"Prism: the files Hermes syncs to a rented machine come to {len(payload)} "
+                f"bytes compressed, past the {MAX_BULK_UPLOAD_BYTES} byte limit. Trim the "
+                "skills and cache directories this profile syncs, or set "
+                "terminal.prism.sync_credentials and the skills external_dirs to what the "
+                "session needs."
+            )
+        command = "umask 077 && base64 -d | tar -xzf - -C /"
+        encoded = base64.b64encode(payload).decode("ascii") + "\n"
+        try:
+            res = self._run_bounded(self._lease, command, deadline=BULK_UPLOAD_TIMEOUT_S,
+                                    timeout=BULK_UPLOAD_COMMAND_S, stdin=encoded)
+        except _SetupTimedOut as e:
+            raise PrismLeaseError(
+                f"Prism: syncing {len(recorded)} files to the leased GPU did not finish "
+                f"inside {BULK_UPLOAD_TIMEOUT_S}s"
+            ) from e
+        if int(res.get("code") or 0) != 0:
+            raise PrismLeaseError(
+                f"Prism: could not sync {len(recorded)} files: "
+                f"{res.get('stderr') or res.get('stdout') or 'exit ' + str(res.get('code'))}"
+            )
+        if (capsule := self._capsule) is not None:
+            for remote_path, data in recorded:
+                capsule.record_artifact(remote_path, data)
 
     def _delete(self, remote_paths: list[str]) -> None:
         try:

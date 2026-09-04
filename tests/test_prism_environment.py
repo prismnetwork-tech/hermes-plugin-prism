@@ -1552,6 +1552,49 @@ class TestFileSync(PrismTestCase):
         self.assertIn("mkdir -p /root/.hermes/skills", call["command"])
         self.assertEqual(call["stdin"].strip(), "aGVsbG8=")
 
+    def test_a_sync_cycle_is_one_tar_stream_not_one_exec_per_file(self):
+        import base64
+        import io
+        import tarfile
+
+        paths = []
+        for i in range(40):
+            source = os.path.join(self.tmp, f"skill-{i}.md")
+            with open(source, "w") as fh:
+                fh.write(f"skill {i}")
+            paths.append((source, f"/root/.hermes/skills/s{i}/SKILL.md"))
+        env = self.make_env()
+        env.execute("true")
+        before = len(self.agent.run_calls)
+
+        env._bulk_upload(paths)
+
+        self.assertEqual(len(self.agent.run_calls), before + 1)
+        call = self.agent.run_calls[-1]
+        self.assertIn("tar -xzf - -C /", call["command"])
+        with tarfile.open(fileobj=io.BytesIO(base64.b64decode(call["stdin"])), mode="r:gz") as archive:
+            names = sorted(archive.getnames())
+            self.assertEqual(len(names), 40)
+            self.assertEqual(names[0], "root/.hermes/skills/s0/SKILL.md")
+            self.assertEqual(archive.extractfile(names[0]).read(), b"skill 0")
+        self.assertEqual(len(env._capsule.to_dict()["artifact_hashes"]), 40)
+
+    def test_the_sync_manager_is_wired_to_the_bulk_upload(self):
+        env = self.make_env()
+        env.execute("true")
+        self.assertIs(env._sync_manager._bulk_upload_fn.__func__, PrismEnvironment._bulk_upload)
+
+    def test_a_bulk_sync_past_the_limit_names_what_to_trim(self):
+        source = os.path.join(self.tmp, "blob.bin")
+        with open(source, "wb") as fh:
+            fh.write(os.urandom(prism_environment.MAX_UPLOAD_BYTES))
+        env = self.make_env()
+        env.execute("true")
+        with mock.patch.object(prism_environment, "MAX_BULK_UPLOAD_BYTES", 1024):
+            with self.assertRaises(PrismLeaseError) as raised:
+                env._bulk_upload([(source, "/root/.hermes/cache/blob.bin")])
+        self.assertIn("Trim", str(raised.exception))
+
     def test_a_file_too_large_to_inline_is_skipped_not_retried_forever(self):
         source = os.path.join(self.tmp, "model.bin")
         with open(source, "wb") as fh:

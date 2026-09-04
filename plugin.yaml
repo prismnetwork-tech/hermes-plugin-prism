@@ -1,0 +1,14 @@
+name: prism
+version: 0.2.0
+description: Prism Network terminal backend. Commands run on an NVIDIA GPU rented by the second from the agent's own wallet, under an operator spend cap
+author: Prism Network <opensource@prismnetwork.tech>
+kind: backend
+license: Apache-2.0
+homepage: https://prismnetwork.tech
+python_dependencies:
+  - prismnetwork>=0.4.0,<0.5.0
+requires_env:
+  - name: PRISM_AGENT_KEY
+    description: Private key of the wallet that pays for GPU leases, funded with USDG and gas on Robinhood Chain
+    url: https://prismnetwork.tech
+    secret: true

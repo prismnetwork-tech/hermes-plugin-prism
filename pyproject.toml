@@ -1,0 +1,34 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "hermes-plugin-prism"
+version = "0.2.0"
+description = "Hermes Agent terminal backend that runs the agent's commands on an NVIDIA GPU rented by the second from the agent's own wallet on Prism Network."
+readme = "README.md"
+requires-python = ">=3.10"
+license = "Apache-2.0"
+keywords = ["hermes", "prism", "gpu", "agent", "terminal", "usdg"]
+dependencies = [
+    "prismnetwork>=0.4.0,<0.5.0",
+]
+
+[project.urls]
+Homepage = "https://prismnetwork.tech"
+Repository = "https://github.com/prismnetwork-tech/hermes-plugin-prism"
+Documentation = "https://prismnetwork.tech/docs"
+
+# The plugin is consumed as a directory dropped into ~/.hermes/plugins/prism/,
+# which is why the modules sit at the repo root. Packaging maps them into a
+# real package so the same tree can also be pip-installed.
+[tool.hatch.build.targets.wheel]
+exclude = ["*"]
+
+[tool.hatch.build.targets.wheel.force-include]
+"__init__.py" = "hermes_plugin_prism/__init__.py"
+"prism_environment.py" = "hermes_plugin_prism/prism_environment.py"
+"plugin.yaml" = "hermes_plugin_prism/plugin.yaml"
+
+[tool.pytest.ini_options]
+markers = ["integration: rents a real GPU and spends real USDG"]

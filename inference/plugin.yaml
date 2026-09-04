@@ -1,0 +1,16 @@
+name: prism-inference
+version: 0.1.0
+description: Prism confidential inference as a model provider. Hermes side models run in a GPU enclave, paid per generation from the agent's own wallet.
+author: Prism Network <opensource@prismnetwork.tech>
+kind: model-provider
+license: Apache-2.0
+homepage: https://prismnetwork.tech
+requires_env:
+  - name: PRISM_AGENT_KEY
+    description: Private key of the wallet the gateway pays generations from, funded with USDG and gas on Robinhood Chain. Read by the gateway, never by Hermes.
+    url: https://prismnetwork.tech
+    secret: true
+  - name: PRISM_INFERENCE_API_KEY
+    description: Placeholder credential Hermes sends to the gateway. Set it to "unused" unless the gateway is guarded by PRISM_HERMES_TOKEN.
+    url: https://prismnetwork.tech
+    secret: false

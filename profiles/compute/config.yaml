@@ -1,0 +1,63 @@
+# Compute Bot: the part of ~/.hermes/profiles/compute/config.yaml that makes it
+# a GPU coworker. Merge these keys into the profile's existing config; do not
+# replace the file, which also carries the model and provider `hermes profile
+# create` wrote.
+
+terminal:
+  backend: prism
+
+  # A GPU is rented on the first command of a session and released on cleanup.
+  # Both ceilings are re-read before every lease, and the model can lower them
+  # but never raise them. Lowering daily_budget_usdg mid-session applies to the
+  # next lease.
+  prism:
+    max_usdg: 0.5
+    daily_budget_usdg: 2
+    # 44 GiB. Matches both rows of current supply; a higher floor cuts live
+    # capacity for no gain.
+    min_vram_mib: 45056
+    trust_class: open
+    # 15 minutes deposits 0.1998 USDG at the observed 0.7992/hr, which stays
+    # under the 0.25 approval stop in SOUL.md. A 30-minute window would deposit
+    # 0.3996 and stop the Bot on its own default lease.
+    lease_seconds: 900
+    # The host operator can read anything the workload touches at trust class
+    # open, so Hermes credential files stay off the rented machine.
+    sync_credentials: false
+
+skills:
+  # The three Prism skills, read-only, straight out of the plugin directory.
+  # Relative paths resolve against this profile's Hermes home.
+  external_dirs:
+    - plugins/prism/skills
+
+mcp_servers:
+  # The six read-only repro tools. No wallet, no key, nothing here can spend.
+  prism-repro:
+    url: https://prismnetwork.tech/api/mcp
+    tools:
+      include:
+        - prism_gpu_capacity
+        - prism_prepare_gpu_repro
+        - prism_gpu_repro_status
+        - prism_gpu_repro_evidence
+        - prism_verify_gpu_repro
+        - prism_gpu_receipts
+
+  # The wallet-side client. Optional, and only worth adding when this Bot should
+  # quote prices and read its own budget without renting anything. The include
+  # list is load-bearing: without it this server also exposes prism_lease,
+  # prism_run and the vault, and every one of those spends or releases secrets.
+  # prism:
+  #   command: npx
+  #   args: ["-y", "@prismnetwork/mcp"]
+  #   env:
+  #     PRISM_ESCROW: "0xfD4228eEEfC49e4b76A0CD40af9fdd546220B2FD"
+  #     PRISM_AGENT_KEY: "${PRISM_AGENT_KEY}"
+  #   tools:
+  #     include:
+  #       - prism_budget
+  #       - prism_wallet
+  #       - prism_list_gpus
+  #       - prism_price_index
+  #       - prism_receipts

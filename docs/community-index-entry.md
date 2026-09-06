@@ -28,7 +28,7 @@ upstream, not a rejection.
   "author": "Prism Network",
   "tags": ["gpu", "nvidia", "cuda", "terminal", "compute", "usdg", "x402"],
   "repo": "prismnetwork-tech/hermes-plugin-prism",
-  "ref": "e305f2af7947d90517113257342828a9baa67438",
+  "ref": "0da9167380d2c59c75a05c5e8fede61e755ebe3d",
   "homepage": "https://prismnetwork.tech",
   "capabilities": ["terminal"],
   "api_version": 1,

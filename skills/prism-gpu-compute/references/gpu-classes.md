@@ -33,7 +33,7 @@ attested or confidential.
 `deviceRepro: false` across the list means a repro runs under the *managed*
 executor: the report is signed by Prism's escrow gateway in place of an enrolled
 node device key. Both are checkable signatures and neither proves faithful
-computation. See `prism-receipts`.
+computation. See `prism-gpu-receipts`.
 
 `bestReliabilityPercent` is the supplier's historical completion record for that
 class. In the 70s, expect a provisioning failure sometimes. It refunds in full,
@@ -60,7 +60,7 @@ at the funding step.
 
 Of those 256 rows, 199 settled `finalized` and 57 settled `refunded`, every
 refund carrying `failure_class: "provisioning_timeout"` and a zero charge. One
-finalized row carries `failure_class: "interrupted"`. `prism-receipts` covers
+finalized row carries `failure_class: "interrupted"`. `prism-gpu-receipts` covers
 what that means for a citation.
 
 Every settled lease in the feed metered at 222 base units per second (0.7992

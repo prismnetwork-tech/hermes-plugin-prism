@@ -18,8 +18,10 @@ import time
 from urllib.parse import urlsplit
 from urllib.request import Request, urlopen
 
-DEFAULT_BASE_URL = "http://127.0.0.1:8787/v1"
+DEFAULT_HOST = "127.0.0.1"
 DEFAULT_PORT = 8787
+DEFAULT_ORIGIN = f"http://{DEFAULT_HOST}:{DEFAULT_PORT}"
+DEFAULT_BASE_URL = f"{DEFAULT_ORIGIN}/v1"
 
 # The confidential tier as Prism published it on 2026-09-03, cheapest first.
 # Price is what one generation costs at the gateway's 1024-token output cap;
@@ -57,7 +59,7 @@ def origin(base_url: str) -> str:
     """
     parts = urlsplit(base_url or DEFAULT_BASE_URL)
     if not parts.scheme or not parts.netloc:
-        return "http://127.0.0.1:8787"
+        return DEFAULT_ORIGIN
     return f"{parts.scheme}://{parts.netloc}"
 
 

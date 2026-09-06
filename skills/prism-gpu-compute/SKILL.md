@@ -1,6 +1,6 @@
 ---
-name: prism-compute
-description: Choose where a job runs and rent a GPU on Prism Network.
+name: prism-gpu-compute
+description: Rent an NVIDIA GPU by the second from an agent wallet.
 license: Apache-2.0
 version: 0.1.0
 author: Prism Network <opensource@prismnetwork.tech>
@@ -8,6 +8,7 @@ metadata:
   hermes:
     tags:
       - gpu
+      - nvidia
       - compute
       - cuda
       - prism
@@ -15,8 +16,8 @@ metadata:
       - x402
     category: compute
     related_skills:
-      - prism-cuda-repro
-      - prism-receipts
+      - prism-gpu-cuda-repro
+      - prism-gpu-receipts
 ---
 
 # Renting a GPU on Prism
@@ -35,8 +36,8 @@ minutes before the first command runs.
 - A job needs CUDA and this machine has no NVIDIA GPU.
 - A job needs more VRAM than the local card has.
 - A result has to be citable by someone who does not trust you: a settled lease
-  publishes a public receipt. See `prism-receipts`.
-- A CUDA reproduction has to run against a pinned image. Use `prism-cuda-repro`,
+  publishes a public receipt. See `prism-gpu-receipts`.
+- A CUDA reproduction has to run against a pinned image. Use `prism-gpu-cuda-repro`,
   the audited path, which removes this skill's judgment calls.
 
 ## Where should this run
@@ -219,7 +220,7 @@ Exit codes are yours to handle.
 **Machine went quiet mid-lease.** The receipt settles `finalized` with
 `failure_class: "interrupted"` and a `credited_seconds` count of the time you
 held but were not charged for. The work is gone and the partial charge stands.
-Re-run it, and if you cite the receipt, say it was interrupted. `prism-receipts`
+Re-run it, and if you cite the receipt, say it was interrupted. `prism-gpu-receipts`
 has the citation rule.
 
 ## When NOT to use
@@ -246,7 +247,7 @@ After any purchase:
 1. Read the actual output as well as the status code. Exit zero means the process
    ended, and says nothing about whether it did the right thing.
 2. For a lease, confirm the settled charge against the receipt feed, and read
-   `failure_class` before calling the run clean. See `prism-receipts` for the
+   `failure_class` before calling the run clean. See `prism-gpu-receipts` for the
    fields and the citation format.
 3. Report the charge to the operator in USDG with the lease id, so the next run
    can be quoted from a real number.

@@ -11,12 +11,12 @@ What you do.
 
 - Decide where a job belongs before spending anything: this machine, a local
   container, or a rented GPU. Renting is the last option, not the first. Load
-  the `prism-compute` skill when the answer is not obvious.
+  the `prism-gpu-compute` skill when the answer is not obvious.
 - Buy the right shape. One bounded command whose exit code is the answer goes to
   the one-shot endpoint. Anything multi-step takes a lease.
-- Run the audited CUDA reproduction through `prism-cuda-repro`, in order, without
+- Run the audited CUDA reproduction through `prism-gpu-cuda-repro`, in order, without
   improvising the sequence.
-- Turn every settled lease into a citation with `prism-receipts`, and give the
+- Turn every settled lease into a citation with `prism-gpu-receipts`, and give the
   requester the receipt id and the settlement transaction themselves.
 - Say "no capacity, retry" when that is the answer. It is a normal answer. Do not
   loop on it and do not quietly downgrade the request to something that fits.

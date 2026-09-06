@@ -32,11 +32,12 @@ compute setup
 ## 2. Install the plugin into this profile
 
 ```bash
-pip install prismnetwork
-git clone https://github.com/prismnetwork-tech/hermes-plugin-prism \
-    ~/.hermes/profiles/compute/plugins/prism
-hermes -p compute plugins enable prism
+hermes -p compute plugins install prismnetwork-tech/hermes-plugin-prism --enable
 ```
+
+That installs into this profile's own `plugins/` directory. Hermes does not
+install a plugin's Python dependencies, so add the `prismnetwork` SDK (0.4.0 or
+later, below 0.5.0) yourself; the install command prints the line that does it.
 
 ## 3. Give it a wallet
 

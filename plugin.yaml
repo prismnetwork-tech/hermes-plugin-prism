@@ -1,5 +1,5 @@
 name: prism
-version: 0.2.0
+version: 0.3.0
 description: Prism Network terminal backend. Commands run on an NVIDIA GPU rented by the second from the agent's own wallet, under an operator spend cap
 author: Prism Network <opensource@prismnetwork.tech>
 kind: backend

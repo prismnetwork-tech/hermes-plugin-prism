@@ -1,12 +1,14 @@
 ---
-name: prism-receipts
-description: Cite and verify a Prism GPU run from its public receipt.
+name: prism-gpu-receipts
+description: Verify what a rented NVIDIA GPU ran, and what it cost.
 license: Apache-2.0
 version: 0.1.0
 author: Prism Network <opensource@prismnetwork.tech>
 metadata:
   hermes:
     tags:
+      - gpu
+      - nvidia
       - receipts
       - evidence
       - citation
@@ -15,8 +17,8 @@ metadata:
       - robinhood-chain
     category: compute
     related_skills:
-      - prism-compute
-      - prism-cuda-repro
+      - prism-gpu-compute
+      - prism-gpu-cuda-repro
 ---
 
 # Citing a Prism run

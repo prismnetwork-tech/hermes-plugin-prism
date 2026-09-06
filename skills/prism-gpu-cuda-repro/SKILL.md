@@ -1,6 +1,6 @@
 ---
-name: prism-cuda-repro
-description: Run and cite the audited Prism CUDA reproduction end to end.
+name: prism-gpu-cuda-repro
+description: Run CUDA on a rented NVIDIA GPU and prove what it did.
 license: Apache-2.0
 version: 0.1.0
 author: Prism Network <opensource@prismnetwork.tech>
@@ -8,6 +8,7 @@ metadata:
   hermes:
     tags:
       - gpu
+      - nvidia
       - cuda
       - reproducibility
       - evidence
@@ -15,8 +16,8 @@ metadata:
       - mcp
     category: compute
     related_skills:
-      - prism-compute
-      - prism-receipts
+      - prism-gpu-compute
+      - prism-gpu-receipts
 ---
 
 # The Prism CUDA repro rail
@@ -35,7 +36,7 @@ the numbers in "What to expect" come from a settled mainnet run.
 - You want a receipt to attach to an issue, a report, or a claim.
 - You are validating that the network still runs the audited workload.
 
-Do not use this to run arbitrary work. For that, read `prism-compute` and pick
+Do not use this to run arbitrary work. For that, read `prism-gpu-compute` and pick
 a purchase path.
 
 ## The MCP surface
@@ -204,7 +205,7 @@ other people's runs: three receipts already carry `77a4f656…`. Match on
 `repro.token_hash` *and* `chain_lease_id`. Exactly one row should match. More
 than one means something is wrong; report it and cite nothing.
 
-**9. Cite it.** Hand off to `prism-receipts` for the capsule shape and the
+**9. Cite it.** Hand off to `prism-gpu-receipts` for the capsule shape and the
 citation format.
 
 ## What to expect

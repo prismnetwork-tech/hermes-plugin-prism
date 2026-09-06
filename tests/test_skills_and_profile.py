@@ -23,7 +23,7 @@ import yaml
 REPO_ROOT = Path(__file__).resolve().parent.parent
 README = REPO_ROOT / "README.md"
 SIDE_MODELS_DOC = REPO_ROOT / "docs" / "confidential-side-models.md"
-SKILLS = ("prism-compute", "prism-cuda-repro", "prism-receipts")
+SKILLS = ("prism-gpu-compute", "prism-gpu-cuda-repro", "prism-gpu-receipts")
 REPRO_TOOLS = (
     "prism_gpu_capacity",
     "prism_prepare_gpu_repro",

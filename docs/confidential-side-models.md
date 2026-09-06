@@ -16,12 +16,12 @@ for reasons worked out below.
 
 ## Install
 
-The provider is a second plugin in this repository. Clone the repository once
+The provider is a second plugin in this repository. Install the repository once
 and symlink the `inference` directory beside it, because Hermes discovers
 plugins one directory deep under `~/.hermes/plugins/`:
 
 ```bash
-git clone https://github.com/prismnetwork-tech/hermes-plugin-prism ~/.hermes/plugins/prism
+hermes plugins install prismnetwork-tech/hermes-plugin-prism --enable
 ln -s ~/.hermes/plugins/prism/inference ~/.hermes/plugins/prism-inference
 ```
 
@@ -47,9 +47,9 @@ export PRISM_AGENT_KEY=0x...      # the wallet that pays, funded with USDG and g
 npx -y prism-hermes
 ```
 
-It listens on `127.0.0.1:8787` and prints its wallet address, its ceilings, and
-whether attestation is being enforced. Leave it running. Hermes calls it the
-next time it names a session or rewrites a memory query.
+It listens on the loopback interface, port 8787, and prints its wallet address,
+its ceilings, and whether attestation is being enforced. Leave it running.
+Hermes calls it the next time it names a session or rewrites a memory query.
 
 Without `PRISM_AGENT_KEY` it still answers `/healthz` and `/v1/models`, and
 refuses generations with a 503 that says why. That is a useful state to install
@@ -65,7 +65,7 @@ fund it with what you are willing to lose.
 
 Hermes needs a placeholder credential to build a client. Prism authorises a
 request by paying for it, so there is no provider key to hold. Put the
-documented placeholder in `~/.hermes/.env`:
+documented placeholder in the `.env` file of your Hermes home:
 
 ```
 PRISM_INFERENCE_API_KEY=unused

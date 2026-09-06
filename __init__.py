@@ -26,7 +26,11 @@ from agent.terminal_env_provider import TerminalEnvironmentProvider
 
 logger = logging.getLogger(__name__)
 
-_SDK_SPEC = "prismnetwork>=0.3.2"
+_SDK_SPEC = "prismnetwork>=0.4.0,<0.5.0"
+
+#: Where the wallet key is read from. The key stays here: it is stripped from
+#: every subprocess and never copied to the rented machine.
+_ENV_FILE = ".env in your Hermes home"
 
 #: Wallet key, chain endpoints and spend configuration. Stripped from every
 #: subprocess the agent spawns, so a model-authored command can neither read
@@ -156,21 +160,21 @@ class PrismProvider(TerminalEnvironmentProvider):
     def check_requirements(self, config: Dict[str, Any]) -> bool:
         if not _sdk_installed():
             logger.error(
-                "the prismnetwork SDK is required for the Prism terminal backend: "
-                "pip install '%s'", _SDK_SPEC,
+                "the Prism terminal backend needs the prismnetwork SDK (%s), "
+                "which Hermes does not install for you", _SDK_SPEC,
             )
             return False
         if not (_get_key() or "").strip():
             logger.error(
                 "the Prism backend rents GPUs from a wallet: put PRISM_AGENT_KEY "
-                "in ~/.hermes/.env, funded with USDG and gas on Robinhood Chain."
+                "in %s, funded with USDG and gas on Robinhood Chain.", _ENV_FILE,
             )
             return False
         return True
 
     def probe(self):
         if not _sdk_installed():
-            return ("needs_setup", f"prismnetwork SDK not installed — pip install '{_SDK_SPEC}'.")
+            return ("needs_setup", f"prismnetwork SDK not installed — needs {_SDK_SPEC}.")
         address = _wallet_address()
         if not address:
             return ("needs_setup", "Set PRISM_AGENT_KEY to a funded Robinhood Chain wallet.")
@@ -186,7 +190,9 @@ class PrismProvider(TerminalEnvironmentProvider):
             "Commands run on an NVIDIA GPU rented by the second and paid for",
             "on-chain in USDG on Robinhood Chain (id 4663).",
             "Create a wallet, fund it with USDG and a little ETH for gas, and",
-            "save its private key in ~/.hermes/.env as PRISM_AGENT_KEY.",
+            f"save its private key as PRISM_AGENT_KEY in {_ENV_FILE}.",
+            "The key stays on this machine. It is stripped from every command",
+            "the model runs and is never copied to the rented GPU.",
             "Prices and available GPUs: https://prismnetwork.tech",
             "Two caps bound the spend, and the model can raise neither:",
             "  hermes config set terminal.prism.max_usdg 1",
@@ -208,11 +214,11 @@ class PrismProvider(TerminalEnvironmentProvider):
             bool(address),
             "Prism wallet",
             f"({address} on Robinhood Chain)" if address
-            else "(required — set PRISM_AGENT_KEY in ~/.hermes/.env to a funded wallet)",
+            else f"(required — set PRISM_AGENT_KEY in {_ENV_FILE} to a funded wallet)",
         ))
         sdk_ok = _sdk_installed()
         rows.append((sdk_ok, "prismnetwork SDK",
-                     "(installed)" if sdk_ok else f"(pip install '{_SDK_SPEC}')"))
+                     "(installed)" if sdk_ok else f"(required: {_SDK_SPEC})"))
         budget_ok, budget_detail = _budget_row()
         rows.append((budget_ok, "Prism spend caps", budget_detail))
         try:

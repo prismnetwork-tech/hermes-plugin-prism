@@ -436,8 +436,8 @@ def build_agent() -> PrismAgent:
     if not key:
         raise PrismLeaseError(
             "The Prism backend needs a funded wallet. Put PRISM_AGENT_KEY in "
-            "~/.hermes/.env (a 32-byte hex key holding USDG and gas on "
-            "Robinhood Chain), or run `hermes setup terminal`."
+            ".env in your Hermes home (a 32-byte hex key holding USDG and gas "
+            "on Robinhood Chain), or run `hermes setup terminal`."
         )
     options = {}
     if api_base := secret("PRISM_API_BASE"):

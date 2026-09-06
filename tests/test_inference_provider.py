@@ -21,6 +21,12 @@ PROVIDER_PLUGIN = "prism-inference"
 PROVIDER = "prism"
 CHEAPEST = "openai/gpt-oss-20b"
 
+# The gateway's published defaults, spelled out here so a silent change to
+# gateway.py fails a test instead of passing one.
+LOOPBACK = "127.0.0.1"
+GATEWAY_PORT = 8787
+GATEWAY_URL = f"http://{LOOPBACK}:{GATEWAY_PORT}/v1"
+
 
 class _FakeResponse:
     def __init__(self, payload):
@@ -177,7 +183,7 @@ def test_the_profile_describes_the_gateway(loaded):
 
     assert profile.name == PROVIDER
     assert profile.display_name == "Prism (confidential inference)"
-    assert profile.base_url == "http://127.0.0.1:8787/v1"
+    assert profile.base_url == GATEWAY_URL
     assert profile.auth_type == "api_key"
     assert profile.env_vars == ("PRISM_INFERENCE_API_KEY",)
     assert profile.default_max_tokens == 1024
@@ -278,9 +284,10 @@ def test_doctor_flags_attestation_turned_off(loaded, gateway, monkeypatch):
 def test_doctor_names_a_port_the_profile_does_not_point_at(loaded, gateway, monkeypatch):
     _manager, profile = loaded
     monkeypatch.setattr(gateway, "urlopen", _urlopen_serving({"/healthz": HEALTHY}))
-    monkeypatch.setenv("PRISM_HERMES_PORT", "9001")
+    other_port = 9001
+    monkeypatch.setenv("PRISM_HERMES_PORT", str(other_port))
 
-    assert "http://127.0.0.1:9001/v1" in profile.doctor_checks()[0][2]
+    assert f"http://{LOOPBACK}:{other_port}/v1" in profile.doctor_checks()[0][2]
 
 
 def test_side_model_config_keys_resolve_to_the_gateway(loaded):
@@ -294,7 +301,7 @@ def test_side_model_config_keys_resolve_to_the_gateway(loaded):
 
     resolved = get_provider(PROVIDER, allow_network=False)
     assert resolved is not None, "prism did not resolve as a provider definition"
-    assert resolved.base_url == "http://127.0.0.1:8787/v1"
+    assert resolved.base_url == GATEWAY_URL
     assert resolved.api_key_env_vars == ("PRISM_INFERENCE_API_KEY",)
     assert resolved.source == "plugin-profile"
 
@@ -308,4 +315,4 @@ def test_loopback_is_left_to_other_local_servers(loaded):
     assert profile.get_hostname() == ""
     assert "127.0.0.1" not in metadata._URL_TO_PROVIDER
     # LM Studio's default port, which this profile must not answer for.
-    assert metadata._infer_provider_from_url("http://127.0.0.1:1234/v1") != PROVIDER
+    assert metadata._infer_provider_from_url(f"http://{LOOPBACK}:1234/v1") != PROVIDER

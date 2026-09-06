@@ -13,34 +13,49 @@ hermes config set terminal.backend prism
 
 ## Install
 
-The plugin is a directory drop, like every other Hermes plugin.
-
 ```bash
-pip install prismnetwork
-git clone https://github.com/prismnetwork-tech/hermes-plugin-prism ~/.hermes/plugins/prism
-hermes plugins enable prism
+hermes plugins install prismnetwork-tech/hermes-plugin-prism --enable
 hermes config set terminal.backend prism
 hermes config set timeouts.tools.sequential_call 900
 ```
 
-The last line matters. Hermes abandons a tool call after 420 seconds by
+Hermes never installs a plugin's Python dependencies, and this one needs the
+`prismnetwork` SDK, version 0.4.0 or later and below 0.5.0. The install command
+prints that requirement and the line that satisfies it; `hermes doctor` names it
+again if you skip the step.
+
+The timeout line matters. Hermes abandons a tool call after 420 seconds by
 default, and the first command of a session rents the GPU and waits for it to
 come up, which the escrow allows ten minutes for. Under the default a lease
 could be funded with nothing left waiting for it, so the backend refuses to
 rent until the ceiling is 900 or higher (`0` removes it).
 
 Then give it a wallet. Create a key, fund it with USDG for leases and a little
-ETH for gas on Robinhood Chain (id 4663), and save the key in `~/.hermes/.env`:
+ETH for gas on Robinhood Chain (id 4663), and save it as `PRISM_AGENT_KEY` in
+the `.env` file of your Hermes home:
 
 ```
 PRISM_AGENT_KEY=0x...
 ```
 
+That key stays on your machine. It is stripped from every command the model
+runs and is never copied to the rented GPU, which
+`tests/test_prism_terminal_live.py` asserts against a real lease.
+
 `hermes doctor` reports the wallet, the caps, what is left of today's budget,
 the trust class, and whether a GPU is currently rented.
 
 Requires hermes-agent v0.20.6 (tag `v2026.8.27`) or later, the release that made
-terminal backends pluggable.
+terminal backends pluggable. To run from source instead, put the repository at
+`plugins/prism` under your Hermes home and run `hermes plugins enable prism`.
+
+It settles on mainnet today. Lease 1230, on 2026-09-04, rented an RTX 6000 Ada
+with 49,140 MiB, deposited 0.133200 USDG for the window, and was released after
+28 seconds of access: 0.006216 USDG charged, 0.126984 returned. Receipt
+`8f3e0c1d-391c-8510-9f77-ebc574905ffe` is listed on
+[prismnetwork.tech/proof](https://prismnetwork.tech/proof), settled by
+transaction `0x1de4eba627f8ffc6c0ce3f628b648c5f13d9f2815843d1fc6979a9b731309d88`
+on Robinhood Chain.
 
 ## Configuration
 
@@ -192,9 +207,9 @@ in what order, and how to hand the result to someone who does not trust you.
 
 | Skill | Answers |
 | --- | --- |
-| `prism-compute` | Should this run here, in Docker, or on a rented GPU? One-shot command or a lease? Which class, what will it cost, what do the caps mean, and what to do when there is no capacity. `references/costs.md` and `references/gpu-classes.md` carry the numbers. |
-| `prism-cuda-repro` | The audited CUDA reproduction as a procedure: pin the image and command, prepare, review the quote, get it funded, wait, collect the signed evidence, verify, cite the receipt. |
-| `prism-receipts` | Turning a settled lease into a citation, and checking one somebody else cited. Defines the proof capsule and ships `scripts/verify_receipt.py`. |
+| `prism-gpu-compute` | Should this run here, in Docker, or on a rented GPU? One-shot command or a lease? Which class, what will it cost, what do the caps mean, and what to do when there is no capacity. `references/costs.md` and `references/gpu-classes.md` carry the numbers. |
+| `prism-gpu-cuda-repro` | The audited CUDA reproduction as a procedure: pin the image and command, prepare, review the quote, get it funded, wait, collect the signed evidence, verify, cite the receipt. |
+| `prism-gpu-receipts` | Turning a settled lease into a citation, and checking one somebody else cited. Defines the proof capsule and ships `scripts/verify_receipt.py`. |
 
 The verifier recomputes a published receipt hash with nothing but the standard
 library, and its exit code is the answer: `0` verified and clean, `1` a check
@@ -202,11 +217,18 @@ failed, `3` verified but the run carries a `failure_class` and must not be cited
 as a clean result.
 
 ```bash
-python3 skills/prism-receipts/scripts/verify_receipt.py --self-test
-python3 skills/prism-receipts/scripts/verify_receipt.py 25dd3d12-bf11-843b-8770-3b5ba725cc97
+python3 skills/prism-gpu-receipts/scripts/verify_receipt.py --self-test
+python3 skills/prism-gpu-receipts/scripts/verify_receipt.py 25dd3d12-bf11-843b-8770-3b5ba725cc97
 ```
 
-Point a profile at them:
+Installing the plugin puts the directory on disk but does not load the skills.
+Take one from the hub, backend or no backend:
+
+```bash
+hermes skills install prismnetwork-tech/hermes-plugin-prism/prism-gpu-cuda-repro
+```
+
+Or point a profile at the directory the plugin already ships:
 
 ```bash
 hermes config set skills.external_dirs '["plugins/prism/skills"]'
@@ -214,6 +236,10 @@ hermes config set skills.external_dirs '["plugins/prism/skills"]'
 
 The path resolves against that profile's Hermes home, the skills load read-only,
 and skill creation still writes to `~/.hermes/skills/`.
+
+The skills were published as `prism-compute`, `prism-cuda-repro` and
+`prism-receipts` before 0.3.0. Those identifiers are retired; the ones above are
+the current names.
 
 Lint them the way Hermes does, and check that Hermes really finds them:
 
@@ -274,8 +300,11 @@ workspaces, pinned training images.
 
 ## Tests
 
+The suite needs `pytest` and the `prismnetwork` SDK in the environment running
+Hermes; an editable install of a local SDK checkout works if you are changing
+both at once.
+
 ```bash
-pip install -e ~/path/to/prismnetwork pytest
 python -m pytest tests/test_prism_environment.py            # unit, no wallet, no network
 PRISM_LIVE_SPEND=1 python -m pytest tests/test_prism_terminal_live.py -m integration
 ```

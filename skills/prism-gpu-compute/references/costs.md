@@ -63,7 +63,7 @@ an RTX 5880 Ada ran against a 900-second window, was billed for 192 seconds
 are time the lease was held and *not* charged, because the machine had already
 gone quiet. The run is settled and the receipt verifies. It is still a run that
 was cut short, and citing it without saying so is a false claim. See
-`prism-receipts`.
+`prism-gpu-receipts`.
 
 ## The one-shot endpoint
 

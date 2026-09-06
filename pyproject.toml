@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "hermes-plugin-prism"
-version = "0.2.0"
+version = "0.3.0"
 description = "Hermes Agent terminal backend that runs the agent's commands on an NVIDIA GPU rented by the second from the agent's own wallet on Prism Network."
 readme = "README.md"
 requires-python = ">=3.10"

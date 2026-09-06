@@ -250,3 +250,75 @@ def test_side_model_doc_prompt_sizes_match_hermes():
     for module, cap in ((title_generator, "64"), (query_rewrite, "96")):
         assert f"max_tokens={cap}" in inspect.getsource(module), module.__name__
         assert f"| {cap} tokens |" in doc, cap
+
+
+# The one settled run the README cites, copied field for field out of the public
+# feed at https://prismnetwork.tech/api/proof. The README is allowed to quote
+# these and nothing else about that lease: an internal control-plane id or a VRAM
+# figure that the receipt does not carry sends a reader to a feed that cannot
+# confirm it.
+SETTLED_RUN = {
+    "receipt_id": "8f3e0c1d-391c-8510-9f77-ebc574905ffe",
+    "lease_id": "34",
+    "gpu_model": "RTX 6000 Ada",
+    "runtime_seconds": 28,
+    "charged_base_units": 6216,
+    "refunded_base_units": 126984,
+    "transaction_hash": (
+        "0x1de4eba627f8ffc6c0ce3f628b648c5f13d9f2815843d1fc6979a9b731309d88"
+    ),
+}
+
+
+def _usdg(base_units: int) -> str:
+    """Base units are millionths of a USDG, and the README quotes six decimals."""
+    return f"{base_units / 1_000_000:.6f}"
+
+
+def test_readme_cites_the_settled_run_the_public_receipt_records():
+    readme = README.read_text()
+
+    assert SETTLED_RUN["receipt_id"] in readme
+    assert SETTLED_RUN["transaction_hash"] in readme
+    assert f"lease {SETTLED_RUN['lease_id']}" in readme
+    assert SETTLED_RUN["gpu_model"] in readme
+    assert f"{SETTLED_RUN['runtime_seconds']} seconds" in readme
+
+    deposit = SETTLED_RUN["charged_base_units"] + SETTLED_RUN["refunded_base_units"]
+    for base_units in (SETTLED_RUN["charged_base_units"], SETTLED_RUN["refunded_base_units"], deposit):
+        assert _usdg(base_units) in readme, base_units
+
+    # A lease id the feed does not hold is worse than no lease id at all.
+    assert "lease 1230" not in readme
+    # The receipt has no VRAM field, so the README cannot source a VRAM claim
+    # from it.
+    assert "49,140" not in readme and "49140" not in readme
+
+
+def test_no_tool_call_scaffolding_reached_the_tree():
+    """Literal XML tool-call markers are an authoring artifact, never content.
+
+    They shipped once, in CHANGELOG.md and in a doc meant for upstream, and no
+    test noticed. This one reads every text file in the tree.
+    """
+    # Built rather than written out, so this file does not trip its own check.
+    markers = tuple(
+        f"<{slash}{tag}>"
+        for tag in ("content", "invoke", "function_calls", "parameter")
+        for slash in ("", "/")
+    ) + ("antml" + ":",)
+    skip = {".git", "__pycache__", ".pytest_cache", ".venv", "venv", "node_modules"}
+
+    offenders = []
+    for path in REPO_ROOT.rglob("*"):
+        if not path.is_file() or skip & set(path.relative_to(REPO_ROOT).parts):
+            continue
+        try:
+            body = path.read_text(encoding="utf-8")
+        except (UnicodeDecodeError, OSError):
+            continue  # binary asset
+        for marker in markers:
+            if marker in body:
+                offenders.append(f"{path.relative_to(REPO_ROOT)}: {marker}")
+
+    assert not offenders, "tool-call scaffolding in the tree: " + "; ".join(offenders)

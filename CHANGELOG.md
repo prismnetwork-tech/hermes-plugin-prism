@@ -1,6 +1,6 @@
 # Changelog
 
-## 0.3.0 — 2026-09-06
+## 0.3.0 — 2026-09-07
 
 ### Skills renamed
 
@@ -14,15 +14,25 @@ names competed with it while saying nothing about the work:
 | `prism-cuda-repro` | `prism-gpu-cuda-repro` |
 | `prism-receipts` | `prism-gpu-receipts` |
 
-The old identifiers are retired. Anything that cited
-`prismnetwork-tech/hermes-plugin-prism/prism-compute` needs the new name, and
-receipts published before this release name the old paths inside their signed
-artifact hashes; those capsules stand as they were signed.
+The old identifiers are retired, so anything that cited
+`prismnetwork-tech/hermes-plugin-prism/prism-compute` needs the new name.
+Published receipts are untouched by this. A receipt hashes lease and run fields
+only, never a skill name or a repository path, so no receipt in the public feed
+changes meaning because a directory moved.
 
-Each description now leads with the hardware and the work, so that a search for
-a GPU or for CUDA can reach the skill once the hub re-indexes. Until it does,
-the exact identifier still resolves:
-`hermes skills install prismnetwork-tech/hermes-plugin-prism/prism-gpu-cuda-repro`.
+The rename does not improve discovery today, and it is worth being exact about
+that. skills.sh holds no entry for this repository under the old names or the
+new ones, so a search for "gpu" or for "cuda" does not reach these skills and
+did not reach them before. What still works, and always has, is the explicit
+identifier, which Hermes resolves straight from GitHub:
+
+```bash
+hermes skills install prismnetwork-tech/hermes-plugin-prism/prism-gpu-cuda-repro
+```
+
+The names are now the ones worth being indexed under when that happens.
+`docs/discovery.md` records how both catalogs are populated, what is filed, and
+what is still open.
 
 ### One-line install
 
@@ -47,5 +57,3 @@ command the model runs, and is never copied to the rented GPU.
 ## 0.2.0 and earlier
 
 No changelog was kept. The commit history is the record.
-</content>
-</invoke>

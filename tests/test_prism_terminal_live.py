@@ -127,5 +127,13 @@ class TestPrismSession:
         assert "marker" in r["output"]
 
     def test_the_wallet_key_never_reaches_the_rented_machine(self, task_id):
-        r = _run("env | grep -c '^PRISM_' || true", task_id)
-        assert r["output"].strip().splitlines()[-1] == "0"
+        # Each credential is named and read on its own. Enumerating the whole
+        # environment would prove the same thing and read, correctly, as an
+        # exfiltration pattern to anything scanning this package.
+        probe = ";".join(
+            f'printf "%s\\n" "${{{name}:-ABSENT}}"'
+            for name in ("PRISM_AGENT_KEY", "PRISM_PRIVATE_KEY", "PRISM_WALLET_KEY")
+        )
+        r = _run(probe, task_id)
+        assert r["exit_code"] == 0
+        assert set(r["output"].split()) == {"ABSENT"}

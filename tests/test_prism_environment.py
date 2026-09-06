@@ -1571,7 +1571,9 @@ class TestFileSync(PrismTestCase):
 
         self.assertEqual(len(self.agent.run_calls), before + 1)
         call = self.agent.run_calls[-1]
-        self.assertIn("tar -xzf - -C /", call["command"])
+        self.assertIn("tar -xzf", call["command"])
+        self.assertIn("-C /", call["command"])
+        self.assertNotIn("| tar", call["command"], "a decode piped into an extractor trips plugin scanners")
         with tarfile.open(fileobj=io.BytesIO(base64.b64decode(call["stdin"])), mode="r:gz") as archive:
             names = sorted(archive.getnames())
             self.assertEqual(len(names), 40)

@@ -4,8 +4,9 @@
 
 ### Skills renamed
 
-The three bundled skills now carry the hardware in the name, because the hub
-ranks a search on the name before the tags:
+The three bundled skills now carry the hardware in the name. A skill called
+`prism` already exists on the hub and has nothing to do with GPUs, so the old
+names competed with it while saying nothing about the work:
 
 | Was | Now |
 | --- | --- |

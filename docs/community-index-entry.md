@@ -1,8 +1,9 @@
 # Community plugin index entry
 
-`hermes plugins search` reads a single JSON catalog. An entry there is what
-turns `hermes plugins install prism-gpu` into a working command and what makes
-this plugin answer a search for "gpu". The entry below is ready to submit.
+`hermes plugins search` reads a single JSON catalog. Only an entry in that
+catalog can shorten the install to `hermes plugins install prism-gpu` or put
+this plugin in front of someone searching for "gpu". The entry below is ready
+to submit.
 
 ## Where it goes
 
@@ -36,9 +37,11 @@ upstream, not a rejection.
 }
 ```
 
-`ref` pins the 0.3.0 release commit. `name` is the bare handle the index
-resolves, and it is deliberately not `prism`: search scores a term found in the
-name above one found in the tags, so the handle carries the hardware.
+`ref` pins a 0.3.0 commit so the entry names an exact tree rather than a moving
+branch; refresh it to the `main` tip on the day the entry is filed. `name` is
+the bare handle the index resolves, and it is deliberately not `prism`: that
+handle is taken on the skills hub by an unrelated skill, and it says nothing
+about the hardware.
 
 ## Until the index exists
 

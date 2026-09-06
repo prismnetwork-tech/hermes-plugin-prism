@@ -1,6 +1,6 @@
 ---
 name: prism-gpu-receipts
-description: Verify what a rented NVIDIA GPU ran, and what it cost.
+description: Check and cite the receipt for a rented NVIDIA GPU run.
 license: Apache-2.0
 version: 0.1.0
 author: Prism Network <opensource@prismnetwork.tech>

@@ -18,8 +18,10 @@ The old identifiers are retired. Anything that cited
 receipts published before this release name the old paths inside their signed
 artifact hashes; those capsules stand as they were signed.
 
-Each description now leads with what the skill does to a GPU, so a search for a
-GPU or for CUDA reaches it.
+Each description now leads with the hardware and the work, so that a search for
+a GPU or for CUDA can reach the skill once the hub re-indexes. Until it does,
+the exact identifier still resolves:
+`hermes skills install prismnetwork-tech/hermes-plugin-prism/prism-gpu-cuda-repro`.
 
 ### One-line install
 

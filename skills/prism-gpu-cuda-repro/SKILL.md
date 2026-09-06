@@ -1,6 +1,6 @@
 ---
 name: prism-gpu-cuda-repro
-description: Run CUDA on a rented NVIDIA GPU and prove what it did.
+description: Run pinned CUDA on a rented NVIDIA GPU, cite the receipt.
 license: Apache-2.0
 version: 0.1.0
 author: Prism Network <opensource@prismnetwork.tech>

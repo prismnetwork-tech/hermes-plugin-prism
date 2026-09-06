@@ -39,8 +39,8 @@ PRISM_AGENT_KEY=0x...
 ```
 
 That key stays on your machine. It is stripped from every command the model
-runs and is never copied to the rented GPU, which
-`tests/test_prism_terminal_live.py` asserts against a real lease.
+runs and is never copied to the rented GPU. The live suite,
+`tests/test_prism_terminal_live.py`, asserts it against a real lease.
 
 `hermes doctor` reports the wallet, the caps, what is left of today's budget,
 the trust class, and whether a GPU is currently rented.
@@ -49,9 +49,10 @@ Requires hermes-agent v0.20.6 (tag `v2026.8.27`) or later, the release that made
 terminal backends pluggable. To run from source instead, put the repository at
 `plugins/prism` under your Hermes home and run `hermes plugins enable prism`.
 
-It settles on mainnet today. Lease 1230, on 2026-09-04, rented an RTX 6000 Ada
-with 49,140 MiB, deposited 0.133200 USDG for the window, and was released after
-28 seconds of access: 0.006216 USDG charged, 0.126984 returned. Receipt
+One settled run, in full: lease 1230, on 2026-09-04, rented an
+RTX 6000 Ada with 49,140 MiB, deposited 0.133200 USDG for the window,
+and was released after 28 seconds of access. It charged 0.006216 USDG and
+returned 0.126984. Receipt
 `8f3e0c1d-391c-8510-9f77-ebc574905ffe` is listed on
 [prismnetwork.tech/proof](https://prismnetwork.tech/proof), settled by
 transaction `0x1de4eba627f8ffc6c0ce3f628b648c5f13d9f2815843d1fc6979a9b731309d88`

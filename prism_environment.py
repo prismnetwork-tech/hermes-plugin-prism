@@ -50,7 +50,15 @@ from prismnetwork import (
     usdg,
 )
 
-from tools.environments.base import BaseEnvironment, _ThreadedProcessHandle
+from tools.environments.base import BaseEnvironment
+
+# Hermes moved the concrete process handle out of `base` into `base_output`,
+# leaving a Protocol of the same public name behind. Take the implementation
+# from wherever this build keeps it, so one plugin runs on either release.
+try:
+    from tools.environments.base_output import _ThreadedProcessHandle
+except ImportError:  # hermes-agent before the split
+    from tools.environments.base import _ThreadedProcessHandle
 from tools.environments.file_sync import FileSyncManager, quoted_rm_command
 
 logger = logging.getLogger(__name__)
@@ -901,7 +909,7 @@ def _bounded(fn, seconds: float, label: str):
 class PrismEnvironment(BaseEnvironment):
     """Prism backend: one rented GPU for as long as the session is using it.
 
-    Spawn-per-call via ``_ThreadedProcessHandle`` around the SDK's blocking
+    Spawn-per-call via Hermes' process handle around the SDK's blocking
     ``run()``, which is a single SSH exec against the leased machine. Nothing
     from the controller's environment is forwarded: the agent's own wallet key
     is what pays for the box, and the box must never see it.

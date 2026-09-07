@@ -186,6 +186,67 @@ class FakeClock:
         self.now += seconds
 
 
+
+def plugin_env():
+    import prism_environment
+    return prism_environment
+
+
+class _TerminalTool:
+    """The terminal tool surface, wherever this Hermes build keeps each piece.
+
+    The environment factory moved from ``tools.terminal_tool`` into
+    ``tools.terminal_tool_backends`` while other helpers stayed put, so resolve
+    each attribute against the module that actually defines it.
+    """
+
+    _MODULES = ("tools.terminal_tool_backends", "tools.terminal_tool_lifecycle",
+                "tools.terminal_tool")
+
+    def _modules(self):
+        import importlib
+        for name in self._MODULES:
+            try:
+                yield importlib.import_module(name)
+            except ImportError:
+                continue
+
+    #: Names Hermes renamed under us, old -> new.
+    _ALIASES: dict[str, str] = {}
+
+    def _candidates(self, name):
+        yield name
+        if name in self._ALIASES:
+            yield self._ALIASES[name]
+
+    def __getattr__(self, name):
+        for candidate in self._candidates(name):
+            for mod in self._modules():
+                if hasattr(mod, candidate):
+                    return getattr(mod, candidate)
+        raise AttributeError(name)
+
+    def owner(self, name):
+        """The module defining *name*, for patching in place."""
+        for candidate in self._candidates(name):
+            for mod in self._modules():
+                if hasattr(mod, candidate):
+                    return mod
+        raise AttributeError(name)
+
+    def real_name(self, name):
+        """What this build calls *name*."""
+        for candidate in self._candidates(name):
+            for mod in self._modules():
+                if hasattr(mod, candidate):
+                    return candidate
+        raise AttributeError(name)
+
+
+def _terminal_backends():
+    return _TerminalTool()
+
+
 class PrismTestCase(unittest.TestCase):
     """Shared harness: a fake wallet, a scratch ledger, and no host file sync."""
 
@@ -850,7 +911,7 @@ class TestHostRetries(PrismTestCase):
 
     def test_one_command_funds_one_lease(self):
         import __init__ as plugin_pkg
-        import tools.terminal_tool as tt
+        tt = _terminal_backends()
         from agent import terminal_env_registry as reg
 
         self.unconfirmed_fundings()
@@ -859,7 +920,7 @@ class TestHostRetries(PrismTestCase):
         self.addCleanup(tt.cleanup_vm, "tid-retry")
         reg.register_provider(plugin_pkg.PrismProvider())
 
-        with mock.patch.object(tt, "_ensure_terminal_env_bridged", lambda: None), \
+        with mock.patch.object(tt.owner("_ensure_terminal_env_bridged"), "_ensure_terminal_env_bridged", lambda: None), \
              mock.patch("time.sleep", lambda _: None), \
              mock.patch.dict(os.environ, {"TERMINAL_ENV": "prism"}):
             result = json.loads(tt.terminal_tool(command="nvidia-smi", task_id="tid-retry",
@@ -1483,7 +1544,7 @@ class TestIdleRelease(PrismTestCase):
 
 class TestSessionLifetime(PrismTestCase):
     def test_the_lease_survives_the_end_of_a_turn(self):
-        import tools.terminal_tool as tt
+        tt = _terminal_backends()
 
         env = self.make_env(task_id="tid-1")
         env.execute("true")
@@ -1742,18 +1803,28 @@ class TestProviderContract(unittest.TestCase):
         self.assertTrue(self.provider.is_container)
         self.assertEqual(self.provider.cache_path_base, "~/.hermes")
 
-    def test_a_non_persistent_session_gets_its_own_lease(self):
-        import tools.terminal_tool as tt
-        from agent import terminal_env_registry as reg
+    def test_each_task_id_gets_its_own_environment(self):
+        """The provider hands every task id its own environment.
 
-        reg._reset_for_tests()
-        self.addCleanup(reg._reset_for_tests)
-        reg.register_provider(self.provider)
+        This used to assert Hermes' session-isolation helper, which is now
+        docker-scoped and says nothing about this backend. The property that
+        matters here is the provider's own contract, so the environment class
+        is stubbed: no wallet, no config, no lease.
+        """
+        built = []
 
-        with mock.patch.object(tt, "_ensure_terminal_env_bridged", lambda: None), \
-             mock.patch.dict(os.environ, {"TERMINAL_ENV": "prism",
-                                          "TERMINAL_CONTAINER_PERSISTENT": "false"}):
-            self.assertTrue(tt._session_isolation_enabled())
+        class StubEnv:
+            def __init__(self, cwd, timeout, task_id):
+                self.task_id = task_id
+                built.append(self)
+
+        stub = mock.Mock(PrismEnvironment=lambda cwd, timeout, task_id: StubEnv(cwd, timeout, task_id))
+        with mock.patch.object(self.plugin, "_env_module", lambda: stub):
+            first = self.provider.create_environment(cwd="/root", timeout=30, task_id="tid-a")
+            second = self.provider.create_environment(cwd="/root", timeout=30, task_id="tid-b")
+
+        self.assertIsNot(first, second)
+        self.assertEqual([e.task_id for e in built], ["tid-a", "tid-b"])
 
     def test_every_prism_credential_is_stripped_from_subprocesses(self):
         with mock.patch.dict(os.environ, {"PRISM_VAULT_TOKEN": "secret"}):
@@ -1824,7 +1895,7 @@ class TestDispatchWiring(unittest.TestCase):
 
     def test_create_environment_falls_through_to_the_provider(self):
         import __init__ as plugin_pkg
-        import tools.terminal_tool as tt
+        tt = _terminal_backends()
         from agent import terminal_env_registry as reg
 
         captured = {}
@@ -1879,7 +1950,7 @@ class RegisteredProviderTestCase(PrismTestCase):
         reg.register_provider(plugin_pkg.PrismProvider())
 
     def created_env(self, task_id="tid-lazy", timeout=30):
-        import tools.terminal_tool as tt
+        tt = _terminal_backends()
 
         env = tt._create_environment(env_type="prism", image="", cwd="/root",
                                      timeout=timeout, task_id=task_id)
